@@ -100,7 +100,7 @@ func Serve(l net.Listener) error {
 			secureConnection := &SecureConnection{}
 			secureConnection.Init(c, serverPrivateKey, &clientPublicKey)
 
-			buf := make([]byte, 2048)
+			buf := make([]byte, 31999)
 			read, err := secureConnection.Read(buf)
 			if err != nil {
 				fmt.Println(err)
