@@ -34,7 +34,7 @@ func (sr *Reader) Init(r io.Reader, priv, pub *[32]byte) {
 func (sr *Reader) Read(p []byte) (n int, err error) {
 	var nonce [24]byte
 
-	encryptedData := make([]byte, len(p))
+	encryptedData := make([]byte, len(p) + box.Overhead + NonceHeaderLength)
 	n, err = sr.r.Read(encryptedData)
 	if err != nil {
 		return 0, err
