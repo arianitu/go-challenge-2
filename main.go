@@ -130,6 +130,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	
 	if _, err := conn.Write([]byte(os.Args[2])); err != nil {
 		log.Fatal(err)
 	}

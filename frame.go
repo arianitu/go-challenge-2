@@ -64,7 +64,7 @@ func (l *LengthPrefixer) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return n, err
 	}
-	copy(p, buf)
+	n = copy(p, buf)
 
 	return n, nil
 }

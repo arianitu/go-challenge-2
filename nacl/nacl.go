@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 )
 
+// This file implements a streaming version of nacl.box. 
+
 var (
 	// NonceHeaderLength is a fixed 24 bytes
 	NonceHeaderLength = 24
@@ -38,9 +40,9 @@ func (sr *Reader) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-		
+
 	encryptedData := make([]byte, length)
-	n, err = sr.r.Read(encryptedData)
+	n, err = io.ReadFull(sr.r, encryptedData)
 	if err != nil {
 		return 0, err
 	}
