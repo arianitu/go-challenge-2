@@ -44,7 +44,7 @@ func (l *LengthPrefixer) Write(p []byte) (n int, err error) {
 
 // Read data from the underlying stream. p is expected to be at least the size
 // of the length prefix. If p is not at least the length of the prefix, Read will
-// write as much as it can and then discard the rest of the message
+// write as much as it can and then discard the rest of the frame
 func (l *LengthPrefixer) Read(p []byte) (n int, err error) {
 	var length uint32
 	err = binary.Read(l.rw, binary.LittleEndian, &length)

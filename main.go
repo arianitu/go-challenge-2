@@ -54,6 +54,11 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 }
 
 // Serve starts a secure echo server on the given listener.
+// Messages are run through a pipeline
+// Sending:
+// [data] -> nacl.Writer -> [nonce][encrypted_data] -> LengthPrefixer -> [length][nonce][encrypted_data] -> socket
+// Receving:
+// socket -> [length][nonce][encrypted_data] -> LengthPrefixer -> [nonce][encrypted_data] -> nacl.Reader -> [data]
 func Serve(l net.Listener) error {
 	for {
 		conn, err := l.Accept()
@@ -74,9 +79,7 @@ func Serve(l net.Listener) error {
 				return
 			}
 
-			// We write at least 2 messages and thus we need to be able to frame them
-			// to read properly from a TCP stream. For more information, take a look at
-			// the documentation of LengthPrefixer
+			// Frame any messages from this point on
 			framedConn := NewLengthPrefixer(conn, maxMessageLength)
 			secureConnection := &SecureConnection{}
 			secureConnection.Init(framedConn, serverPrivateKey, &clientPublicKey)

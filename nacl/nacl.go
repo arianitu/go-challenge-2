@@ -15,7 +15,6 @@ var (
 )
 
 // Reader wraps an underlying reader with a secure
-//
 type Reader struct {
 	sharedKey [32]byte
 	r         io.Reader
@@ -35,7 +34,7 @@ func (sr *Reader) Init(r io.Reader, priv, pub *[32]byte) {
 func (sr *Reader) Read(p []byte) (n int, err error) {
 	var nonce [24]byte
 
-	encryptedData := make([]byte, NonceHeaderLength+MaxBoxLength+box.Overhead)
+	encryptedData := make([]byte, len(p))
 	n, err = sr.r.Read(encryptedData)
 	if err != nil {
 		return 0, err
@@ -43,9 +42,9 @@ func (sr *Reader) Read(p []byte) (n int, err error) {
 
 	copy(nonce[:], encryptedData[0:24])
 	var decryptedData = make([]byte, 0)
-	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:], &nonce, &sr.sharedKey)
+	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:n], &nonce, &sr.sharedKey)
 	if !ok {
-		return 0, fmt.Errorf("Failed to decrypt box! Message length must be smaller than 32KB!")
+		return 0, fmt.Errorf("Failed to decrypt box!")
 	}
 
 	copy(p, decryptedData)
