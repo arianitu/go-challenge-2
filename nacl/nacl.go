@@ -2,9 +2,9 @@ package nacl
 
 import (
 	"crypto/rand"
+	"fmt"
 	"golang.org/x/crypto/nacl/box"
 	"io"
-	"fmt"
 )
 
 type Reader struct {
@@ -28,16 +28,16 @@ func (sr *Reader) Read(p []byte) (n int, err error) {
 
 	// 24 is nonce length
 	// Max message length is 32kb - 1
-	encryptedData := make([]byte, 24 + 31999 + box.Overhead)
+	encryptedData := make([]byte, 24+31999+box.Overhead)
 	n, err = sr.r.Read(encryptedData)
 	if err != nil {
 		return 0, nil
 	}
-	
+
 	copy(nonce[:], encryptedData[0:24])
 	decryptedData := make([]byte, 0)
 	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:n], &nonce, &sr.sharedKey)
-	if ! ok {
+	if !ok {
 		return 0, fmt.Errorf("Failed to decrypt box! Message length must be smaller than 32KB!")
 	}
 

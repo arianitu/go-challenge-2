@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"github.com/arianitu/go-challenge-2/nacl"
@@ -22,41 +21,6 @@ func NewSecureWriter(w io.Writer, priv, pub *[32]byte) io.Writer {
 	return nacl.NewWriter(w, priv, pub)
 }
 
-type SecureConnection struct {
-	sr   *nacl.Reader
-	sw   *nacl.Writer
-	conn net.Conn
-}
-
-func (sconn *SecureConnection) Init(conn net.Conn, priv, pub *[32]byte) {
-	sconn.sr = nacl.NewReader(conn, priv, pub)
-	sconn.sw = nacl.NewWriter(conn, priv, pub)
-	sconn.conn = conn
-}
-
-func (sconn *SecureConnection) Read(p []byte) (n int, err error) {
-	return sconn.sr.Read(p)
-}
-
-func (sconn *SecureConnection) Write(p []byte) (n int, err error) {
-	return sconn.sw.Write(p)
-}
-
-func (sconn *SecureConnection) Close() error {
-	return sconn.conn.Close()
-}
-
-type KeyRandomizer struct{}
-
-func (r *KeyRandomizer) Read(p []byte) (n int, err error) {
-	return rand.Read(p)
-}
-
-// Client: generate private/public key for self
-// Server: generate private/public key for self
-//
-// swap public keys..
-
 // Dial generates a private/public key pair,
 // connects to the server, perform the handshake
 // and return a reader/writer.
@@ -65,17 +29,18 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientPublicKey, clientPrivateKey, err := box.GenerateKey(&KeyRandomizer{})
+	clientPublicKey, clientPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 
+	framedConn := NewLengthPrefixer(conn)
 	var serverPublicKey [32]byte
-	_, err = conn.Read(serverPublicKey[:])
+	_, err = framedConn.Read(serverPublicKey[:])
 	if err != nil {
 		return nil, err
 	}
 
-	conn.Write(clientPublicKey[:])
+	framedConn.Write(clientPublicKey[:])
 	secureConnection := &SecureConnection{}
-	secureConnection.Init(conn, clientPrivateKey, &serverPublicKey)
+	secureConnection.Init(framedConn, clientPrivateKey, &serverPublicKey)
 
 	return secureConnection, nil
 }
@@ -89,26 +54,31 @@ func Serve(l net.Listener) error {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			serverPublicKey, serverPrivateKey, err := box.GenerateKey(&KeyRandomizer{})
-			c.Write(serverPublicKey[:])
+
+			framedConn := NewLengthPrefixer(c)
+			serverPublicKey, serverPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
+			framedConn.Write(serverPublicKey[:])
 
 			var clientPublicKey [32]byte
-			_, err = c.Read(clientPublicKey[:])
+			_, err = framedConn.Read(clientPublicKey[:])
 			if err != nil {
 				fmt.Println(err)
+				return
 			}
 			secureConnection := &SecureConnection{}
-			secureConnection.Init(c, serverPrivateKey, &clientPublicKey)
+			secureConnection.Init(framedConn, serverPrivateKey, &clientPublicKey)
 
 			buf := make([]byte, 31999)
 			read, err := secureConnection.Read(buf)
 			if err != nil {
 				fmt.Println(err)
+				return
 			}
 
 			_, err = secureConnection.Write(buf[:read])
 			if err != nil {
 				fmt.Println(err)
+				return
 			}
 		}(conn)
 	}
