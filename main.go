@@ -11,8 +11,8 @@ import (
 	"os"
 )
 
-const (
-	maxMessageLength = 319999
+var (
+	maxMessageLength = uint32(nacl.MaxBoxLength + nacl.NonceHeaderLength + box.Overhead)
 )
 
 // NewSecureReader instantiates a new SecureReader
@@ -33,16 +33,20 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientPublicKey, clientPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 
-	framedConn := NewLengthPrefixer(conn, maxMessageLength)
+	// We don't use LengthPrefixer on the key to satisfy the way the tests communicate
+	clientPublicKey, clientPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 	var serverPublicKey [32]byte
-	_, err = framedConn.Read(serverPublicKey[:])
+	_, err = io.ReadAtLeast(conn, serverPublicKey[:], 32)
 	if err != nil {
 		return nil, err
 	}
+	conn.Write(clientPublicKey[:])
 
-	framedConn.Write(clientPublicKey[:])
+	// We write at least 2 messages and thus we need to be able to frame them
+	// to read properly from a TCP stream. For more information, take a look at
+	// the documentation of LengthPrefixer
+	framedConn := NewLengthPrefixer(conn, maxMessageLength)
 	secureConnection := &SecureConnection{}
 	secureConnection.Init(framedConn, clientPrivateKey, &serverPublicKey)
 
@@ -56,22 +60,24 @@ func Serve(l net.Listener) error {
 		if err != nil {
 			return err
 		}
-		go func(c net.Conn) {
-			defer c.Close()
+		go func(conn net.Conn) {
+			defer conn.Close()
 
-			// We write at least 2 messages and thus we need to be able to frame them
-			// to read properly from a TCP stream. For more information, take a look at
-			// the documentation of NewLengthPrefixer
-			framedConn := NewLengthPrefixer(c, maxMessageLength)
+			// We don't use LengthPrefixer on the key to satisfy the way the tests communicate
 			serverPublicKey, serverPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
-			framedConn.Write(serverPublicKey[:])
+			conn.Write(serverPublicKey[:])
 
 			var clientPublicKey [32]byte
-			_, err = framedConn.Read(clientPublicKey[:])
+			_, err = io.ReadAtLeast(conn, clientPublicKey[:], 32)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
+
+			// We write at least 2 messages and thus we need to be able to frame them
+			// to read properly from a TCP stream. For more information, take a look at
+			// the documentation of LengthPrefixer
+			framedConn := NewLengthPrefixer(conn, maxMessageLength)
 			secureConnection := &SecureConnection{}
 			secureConnection.Init(framedConn, serverPrivateKey, &clientPublicKey)
 

@@ -22,7 +22,7 @@ func (sconn *SecureConnection) Init(conn io.ReadWriteCloser, priv, pub *[32]byte
 	sconn.conn = conn
 }
 
-// Read reads 
+// Read reads
 func (sconn *SecureConnection) Read(p []byte) (n int, err error) {
 	return sconn.sr.Read(p)
 }

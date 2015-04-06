@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 )
 
-// box.GenerateKey requires an io.Reader to generate keys. We wrap
-// rand.Read() to satisfy it.
+// CryptoRandomReader generates cryptographically random data
 type CryptoRandomReader struct{}
 
+// Read will put random data into p, it will try to fill p entirely with random data
 func (r *CryptoRandomReader) Read(p []byte) (n int, err error) {
 	return rand.Read(p)
 }

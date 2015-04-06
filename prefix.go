@@ -9,9 +9,9 @@ import (
 // LengthPrefixer implements length-prefixing framing.
 // TCP and other streaming communication channels do not work on frames, but work on a stream of data.
 // A common technique to read in frames is to add a length before each message on a write, and then
-// consume the length on a read. LengthPrefier does that for you on an underlying ReadWriteCloser
+// consume the length on a read. LengthPrefixer does that for you on an underlying ReadWriteCloser
 type LengthPrefixer struct {
-	rw io.ReadWriteCloser
+	rw        io.ReadWriteCloser
 	maxLength uint32
 }
 
@@ -32,7 +32,7 @@ func NewLengthPrefixer(rw io.ReadWriteCloser, maxLength uint32) *LengthPrefixer 
 	return l
 }
 
-// Write data to the underlying stream. The data is prefixed with a length. 
+// Write data to the underlying stream. The data is prefixed with a length.
 func (l *LengthPrefixer) Write(p []byte) (n int, err error) {
 	length := uint32(len(p))
 	err = binary.Write(l.rw, binary.LittleEndian, &length)
@@ -51,8 +51,12 @@ func (l *LengthPrefixer) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
+
+	if length <= 0 {
+		return 0, fmt.Errorf("Length prefix is zero!")
+	}
 	if length > l.maxLength {
-		return 0, fmt.Errorf("Length prefix is too big!")
+		return 0, fmt.Errorf("Length prefix is too big! length: %d max length: %d", length, l.maxLength)
 	}
 
 	buf := make([]byte, length)

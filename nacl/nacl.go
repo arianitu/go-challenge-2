@@ -7,6 +7,15 @@ import (
 	"io"
 )
 
+var (
+	// MaxBoxLength is the maximum size we'll try to decrypt (excluding nonce header)
+	MaxBoxLength = 31999
+	// NonceHeaderLength is a fixed 24 bytes
+	NonceHeaderLength = 24
+)
+
+// Reader wraps an underlying reader with a secure
+//
 type Reader struct {
 	sharedKey [32]byte
 	r         io.Reader
@@ -26,17 +35,15 @@ func (sr *Reader) Init(r io.Reader, priv, pub *[32]byte) {
 func (sr *Reader) Read(p []byte) (n int, err error) {
 	var nonce [24]byte
 
-	// 24 is nonce length
-	// Max message length is 32kb - 1
-	encryptedData := make([]byte, 24+31999+box.Overhead)
+	encryptedData := make([]byte, NonceHeaderLength+MaxBoxLength+box.Overhead)
 	n, err = sr.r.Read(encryptedData)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	copy(nonce[:], encryptedData[0:24])
-	decryptedData := make([]byte, 0)
-	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:n], &nonce, &sr.sharedKey)
+	var decryptedData = make([]byte, 0)
+	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:], &nonce, &sr.sharedKey)
 	if !ok {
 		return 0, fmt.Errorf("Failed to decrypt box! Message length must be smaller than 32KB!")
 	}
