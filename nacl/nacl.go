@@ -8,8 +8,6 @@ import (
 )
 
 var (
-	// MaxBoxLength is the maximum size we'll try to decrypt (excluding nonce header)
-	MaxBoxLength = 31999
 	// NonceHeaderLength is a fixed 24 bytes
 	NonceHeaderLength = 24
 )
@@ -71,6 +69,7 @@ func (sw *Writer) Write(p []byte) (n int, err error) {
 	var nonce [24]byte
 
 	randomBytes := make([]byte, 24)
+	// rand is guaranteed to read 24 bytes because it calls ReadFull under the covers
 	_, err = rand.Read(randomBytes)
 	if err != nil {
 		return 0, err

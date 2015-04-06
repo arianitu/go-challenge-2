@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	maxMessageLength = uint32(nacl.MaxBoxLength + nacl.NonceHeaderLength + box.Overhead)
+	maxMessageLength = uint32(31999 + nacl.NonceHeaderLength + box.Overhead)
 )
 
 // NewSecureReader instantiates a new SecureReader
