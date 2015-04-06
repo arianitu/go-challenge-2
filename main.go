@@ -3,17 +3,26 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/arianitu/go-challenge-2/nacl"
 	"golang.org/x/crypto/nacl/box"
 	"io"
 	"log"
 	"net"
 	"os"
+	"crypto/rand"
+	"github.com/arianitu/go-challenge-2/nacl"
 )
 
 var (
 	maxMessageLength = uint32(31999 + nacl.NonceHeaderLength + box.Overhead)
 )
+
+// CryptoRandomReader generates cryptographically random data
+type CryptoRandomReader struct{}
+
+// Read will put random data into p, it will try to fill p entirely with random data
+func (r *CryptoRandomReader) Read(p []byte) (n int, err error) {
+	return rand.Read(p)
+}
 
 // NewSecureReader instantiates a new SecureReader
 func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
@@ -43,9 +52,7 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 	}
 	conn.Write(clientPublicKey[:])
 
-	// We write at least 2 messages and thus we need to be able to frame them
-	// to read properly from a TCP stream. For more information, take a look at
-	// the documentation of LengthPrefixer
+	// Frame any messages from this point on
 	framedConn := NewLengthPrefixer(conn, maxMessageLength)
 	secureConnection := &SecureConnection{}
 	secureConnection.Init(framedConn, clientPrivateKey, &serverPublicKey)
@@ -58,7 +65,7 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 // Sending:
 // [data] -> nacl.Writer -> [nonce][encrypted_data] -> LengthPrefixer -> [length][nonce][encrypted_data] -> socket
 // Receving:
-// socket -> [length][nonce][encrypted_data] -> LengthPrefixer -> [nonce][encrypted_data] -> nacl.Reader -> [data]
+// socket -> [length][nonce][encrypted_data] -> LengthPrefixer -> [length][nonce][encrypted_data] -> nacl.Reader -> [data]
 func Serve(l net.Listener) error {
 	for {
 		conn, err := l.Accept()
@@ -79,7 +86,7 @@ func Serve(l net.Listener) error {
 				return
 			}
 
-			// Frame any messages from this point on
+			// Frame any messages from this point on.
 			framedConn := NewLengthPrefixer(conn, maxMessageLength)
 			secureConnection := &SecureConnection{}
 			secureConnection.Init(framedConn, serverPrivateKey, &clientPublicKey)

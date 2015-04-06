@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/nacl/box"
 	"io"
+	"encoding/binary"
 )
 
 var (
@@ -12,7 +13,7 @@ var (
 	NonceHeaderLength = 24
 )
 
-// Reader wraps an underlying reader with a secure
+// Reader wraps an underlying reader 
 type Reader struct {
 	sharedKey [32]byte
 	r         io.Reader
@@ -29,16 +30,24 @@ func (sr *Reader) Init(r io.Reader, priv, pub *[32]byte) {
 	sr.r = r
 }
 
+// Decrypts data
 func (sr *Reader) Read(p []byte) (n int, err error) {
-	var nonce [24]byte
 
-	encryptedData := make([]byte, len(p) + box.Overhead + NonceHeaderLength)
+	var length uint32
+	err = binary.Read(sr.r, binary.LittleEndian, &length)
+	if err != nil {
+		return 0, err
+	}
+		
+	encryptedData := make([]byte, length)
 	n, err = sr.r.Read(encryptedData)
 	if err != nil {
 		return 0, err
 	}
-
+	
+	var nonce [24]byte
 	copy(nonce[:], encryptedData[0:24])
+	
 	var decryptedData = make([]byte, 0)
 	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:n], &nonce, &sr.sharedKey)
 	if !ok {
@@ -66,16 +75,28 @@ func (sw *Writer) Init(w io.Writer, priv, pub *[32]byte) {
 }
 
 func (sw *Writer) Write(p []byte) (n int, err error) {
-	var nonce [24]byte
-
-	randomBytes := make([]byte, 24)
-	// rand is guaranteed to read 24 bytes because it calls ReadFull under the covers
-	_, err = rand.Read(randomBytes)
+	
+	// rand.Read is guaranteed to read 24 bytes because it calls ReadFull under the covers
+	nonceBytes := make([]byte, 24)
+	_, err = rand.Read(nonceBytes)
 	if err != nil {
 		return 0, err
 	}
-	copy(nonce[:], randomBytes[:])
-	encryptedData := box.SealAfterPrecomputation(randomBytes, p, &nonce, &sw.sharedKey)
+	
+	// We create a fixed array to copy the nonceBytes (there is no way to convert from slice to fixed array without copying)
+	var nonce [24]byte
+	copy(nonce[:], nonceBytes[:])
+	
+	// box.Seal takes `out` and appends the encrypted data to it and returns it (it does _not_ change `out`)
+	// We pass nonceBytes to Seal so we get returned data in the form [nonce][encryptedData] 
+	encryptedData := box.SealAfterPrecomputation(nonceBytes, p, &nonce, &sw.sharedKey)
+
+	// Prepend the length to our data so the reader knows how much room to make when reading
+	var length = uint32(len(encryptedData))
+	err = binary.Write(sw.w, binary.LittleEndian, length)
+	if err != nil {
+		return 0, nil
+	}
 
 	written := 0
 	n, err = sw.w.Write(encryptedData)
