@@ -6,20 +6,30 @@ import (
 	"io"
 )
 
+// TCP and other streaming communication channels do not work on frames, but work on a stream of data.
+// A common technique to read in frames is to add a length before each message on a write, and then
+// consume the length on a read. LengthPrefier does that for you on an underlying ReadWriteCloser
 type LengthPrefixer struct {
 	rw io.ReadWriteCloser
+	maxLength uint32
 }
 
-func (l *LengthPrefixer) Init(rw io.ReadWriteCloser) {
+// maxLength is the maximum message size that LengthPrefier will try to read
+// rw is the underlying stream, such as tcp.Conn
+func (l *LengthPrefixer) Init(rw io.ReadWriteCloser, maxLength uint32) {
 	l.rw = rw
+	l.maxLength = maxLength
 }
 
-func NewLengthPrefixer(rw io.ReadWriteCloser) *LengthPrefixer {
+// maxLength is the maximum message size that LengthPrefier will try to read
+// rw is the underlying stream, such as tcp.Conn
+func NewLengthPrefixer(rw io.ReadWriteCloser, maxLength uint32) *LengthPrefixer {
 	l := &LengthPrefixer{}
-	l.Init(rw)
+	l.Init(rw, maxLength)
 	return l
 }
 
+// Write data to the underlying stream. The data is prefixed with a length. 
 func (l *LengthPrefixer) Write(p []byte) (n int, err error) {
 	var length uint32 = uint32(len(p))
 	err = binary.Write(l.rw, binary.LittleEndian, &length)
@@ -29,6 +39,9 @@ func (l *LengthPrefixer) Write(p []byte) (n int, err error) {
 	return l.rw.Write(p)
 }
 
+// Read data from the underlying stream. p is expected to be at least the size
+// of the length prefix. If p is not at least the length of the prefix, Read will
+// write as much as it can and then discard the rest of the message
 func (l *LengthPrefixer) Read(p []byte) (n int, err error) {
 	var length uint32
 	err = binary.Read(l.rw, binary.LittleEndian, &length)
