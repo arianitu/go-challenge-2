@@ -6,6 +6,7 @@ import (
 	"io"
 )
 
+// LengthPrefixer implements length-prefixing framing.
 // TCP and other streaming communication channels do not work on frames, but work on a stream of data.
 // A common technique to read in frames is to add a length before each message on a write, and then
 // consume the length on a read. LengthPrefier does that for you on an underlying ReadWriteCloser
@@ -14,14 +15,16 @@ type LengthPrefixer struct {
 	maxLength uint32
 }
 
-// maxLength is the maximum message size that LengthPrefier will try to read
+// Init initializes the prefixer
+// maxLength is the maximum message size that LengthPrefier will try to read (not including the uint32 header)
 // rw is the underlying stream, such as tcp.Conn
 func (l *LengthPrefixer) Init(rw io.ReadWriteCloser, maxLength uint32) {
 	l.rw = rw
 	l.maxLength = maxLength
 }
 
-// maxLength is the maximum message size that LengthPrefier will try to read
+// NewLengthPrefixer is a helper method that allocates a LengthPrefixer and initializes it for you
+// maxLength is the maximum message size that LengthPrefier will try to read (not including the uin32 header)
 // rw is the underlying stream, such as tcp.Conn
 func NewLengthPrefixer(rw io.ReadWriteCloser, maxLength uint32) *LengthPrefixer {
 	l := &LengthPrefixer{}
@@ -31,7 +34,7 @@ func NewLengthPrefixer(rw io.ReadWriteCloser, maxLength uint32) *LengthPrefixer 
 
 // Write data to the underlying stream. The data is prefixed with a length. 
 func (l *LengthPrefixer) Write(p []byte) (n int, err error) {
-	var length uint32 = uint32(len(p))
+	length := uint32(len(p))
 	err = binary.Write(l.rw, binary.LittleEndian, &length)
 	if err != nil {
 		return 0, err
@@ -48,7 +51,7 @@ func (l *LengthPrefixer) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	if length > 31999 {
+	if length > l.maxLength {
 		return 0, fmt.Errorf("Length prefix is too big!")
 	}
 
@@ -62,6 +65,7 @@ func (l *LengthPrefixer) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// Close closes the underlying stream
 func (l *LengthPrefixer) Close() error {
 	return l.rw.Close()
 }

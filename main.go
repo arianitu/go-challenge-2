@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MAX_MESSAGE_LENGTH = 319999
+	maxMessageLength = 319999
 )
 
 // NewSecureReader instantiates a new SecureReader
@@ -35,7 +35,7 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 	}
 	clientPublicKey, clientPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 
-	framedConn := NewLengthPrefixer(conn, MAX_MESSAGE_LENGTH)
+	framedConn := NewLengthPrefixer(conn, maxMessageLength)
 	var serverPublicKey [32]byte
 	_, err = framedConn.Read(serverPublicKey[:])
 	if err != nil {
@@ -62,7 +62,7 @@ func Serve(l net.Listener) error {
 			// We write at least 2 messages and thus we need to be able to frame them
 			// to read properly from a TCP stream. For more information, take a look at
 			// the documentation of NewLengthPrefixer
-			framedConn := NewLengthPrefixer(c, MAX_MESSAGE_LENGTH)
+			framedConn := NewLengthPrefixer(c, maxMessageLength)
 			serverPublicKey, serverPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 			framedConn.Write(serverPublicKey[:])
 
@@ -75,7 +75,7 @@ func Serve(l net.Listener) error {
 			secureConnection := &SecureConnection{}
 			secureConnection.Init(framedConn, serverPrivateKey, &clientPublicKey)
 
-			buf := make([]byte, MAX_MESSAGE_LENGTH)
+			buf := make([]byte, maxMessageLength)
 			read, err := secureConnection.Read(buf)
 			if err != nil {
 				fmt.Println(err)
