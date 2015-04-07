@@ -1,15 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"golang.org/x/crypto/nacl/box"
 	"io"
 	"log"
 	"net"
 	"os"
-	"crypto/rand"
-	"golang.org/x/crypto/nacl/box"
-	
+
 	"github.com/arianitu/go-challenge-2/snacl"
 )
 
@@ -109,7 +109,7 @@ func Serve(l net.Listener) error {
 
 			serverPublicKey, serverPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 			_, err = conn.Write(serverPublicKey[:])
-			if (err != nil) {
+			if err != nil {
 				log.Println(err)
 				return
 			}
@@ -162,7 +162,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	if _, err := conn.Write([]byte(os.Args[2])); err != nil {
 		log.Fatal(err)
 	}

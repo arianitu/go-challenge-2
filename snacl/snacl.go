@@ -1,9 +1,9 @@
 /*
-Package snacl wraps nacl around a Reader/Writer so it's easy to compose with other Reader/Writers (such as a TCP connection.) It 
+
+Package snacl wraps nacl around a Reader/Writer so it's easy to compose with other Reader/Writers (such as a TCP connection.) It
 also handles nonces for you.
 
 */
-
 package snacl
 
 import (
@@ -89,7 +89,7 @@ func NewWriter(w io.Writer, priv, pub *[32]byte) *Writer {
 	return sw
 }
 
-// Init initializes our Writer. 
+// Init initializes our Writer.
 // w is the underlying stream to write securely to
 // priv is your private key
 // pub is the public key of who you're communicating with
