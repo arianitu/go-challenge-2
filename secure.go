@@ -20,7 +20,7 @@ func (r *CryptoRandomReader) Read(p []byte) (n int, err error) {
 	return rand.Read(p)
 }
 
-// SecureReadWriteCloser implements a secure connection using public-key cryptography
+// SecureReadWriteCloser implements a secure ReadWriteCloser using public-key cryptography
 type SecureReadWriteCloser struct {
 	sr  io.Reader
 	sw  io.Writer
@@ -54,9 +54,9 @@ func (srwc *SecureReadWriteCloser) Close() error {
 
 // NewSecureReadWriteCloser allocates a SecureReadWriteCloser for you and initializes it
 func NewSecureReadWriteCloser(r io.ReadWriteCloser, priv, pub *[32]byte) *SecureReadWriteCloser {
-	secureConnection := &SecureReadWriteCloser{}
-	secureConnection.Init(r, priv, pub)
-	return secureConnection
+	srwc := &SecureReadWriteCloser{}
+	srwc.Init(r, priv, pub)
+	return srwc
 }
 
 // SecureReader decrypts from a stream securely using nacl
