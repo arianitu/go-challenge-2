@@ -1,4 +1,10 @@
-package nacl
+/*
+Package snacl wraps nacl around a Reader/Writer so it's easy to compose with other Reader/Writers (such as a TCP connection.) It 
+also handles nonces for you.
+
+*/
+
+package snacl
 
 import (
 	"crypto/rand"
@@ -6,13 +12,6 @@ import (
 	"fmt"
 	"golang.org/x/crypto/nacl/box"
 	"io"
-)
-
-// This package implements a streaming version of nacl.box.
-
-var (
-	// NonceHeaderLength is a fixed 24 bytes
-	NonceHeaderLength = 24
 )
 
 // Reader decrypts from a stream securely using nacl
@@ -40,7 +39,7 @@ func (sr *Reader) Init(r io.Reader, priv, pub *[32]byte) {
 	sr.r = r
 }
 
-// Read decrypts data in the underlying stream and writes it to p []byte
+// Read decrypts a box in the underlying stream and writes it to p []byte
 func (sr *Reader) Read(p []byte) (n int, err error) {
 
 	// Length is the length of the encrypted data (including box.Overhead)
@@ -62,7 +61,7 @@ func (sr *Reader) Read(p []byte) (n int, err error) {
 
 	// OpenAfterPrecomputation appends to out and returns the appended data
 	var decryptedData = make([]byte, 0)
-	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:n], &nonce, &sr.sharedKey)
+	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:], &nonce, &sr.sharedKey)
 
 	// If ok is false, we have failed to decrypt properly
 	// Usually this is because the encrypted data is malformed
@@ -90,7 +89,7 @@ func NewWriter(w io.Writer, priv, pub *[32]byte) *Writer {
 	return sw
 }
 
-// Init initializes our Writer
+// Init initializes our Writer. 
 // w is the underlying stream to write securely to
 // priv is your private key
 // pub is the public key of who you're communicating with
