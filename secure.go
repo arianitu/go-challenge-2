@@ -8,10 +8,6 @@ import (
 	"io"
 )
 
-var (
-	maxMessageLength = 31999
-)
-
 // CryptoRandomReader generates crypto random data
 type CryptoRandomReader struct{}
 

@@ -11,6 +11,13 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
+var (
+	// The maximum message size for the challenge is 32kb - 1
+	maxMessageLength = 31999
+)
+
+// If you're looking for NewSecureReader and NewSecureWriter, they're in secure.go (it's easier to read from top to bottom)
+
 // Dial generates a private/public key pair,
 // connects to the server, perform the handshake
 // and return a reader/writer.
@@ -20,6 +27,7 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 		return nil, err
 	}
 
+	// We perform the handshake by sending the server our public key and receiving the servers public key
 	clientPublicKey, clientPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 	var serverPublicKey [32]byte
 	_, err = io.ReadAtLeast(conn, serverPublicKey[:], 32)
@@ -44,6 +52,7 @@ func Serve(l net.Listener) error {
 		go func(conn net.Conn) {
 			defer conn.Close()
 
+			// We perform the handshake by sending the client our public key and receiving the clients public key
 			serverPublicKey, serverPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 			_, err = conn.Write(serverPublicKey[:])
 			if err != nil {
