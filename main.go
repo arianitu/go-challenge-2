@@ -91,6 +91,8 @@ func Serve(l net.Listener) error {
 			secureConnection := &SecureConnection{}
 			secureConnection.Init(framedConn, serverPrivateKey, &clientPublicKey)
 
+			// In a typical server, we'd re-use this buffer for each message
+			// and the maximum would be a lot smaller than 32kb.
 			buf := make([]byte, maxMessageLength)
 			read, err := secureConnection.Read(buf)
 			if err != nil {
