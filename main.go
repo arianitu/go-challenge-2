@@ -1,78 +1,15 @@
 package main
 
 import (
-	"crypto/rand"
 	"flag"
 	"fmt"
-	"golang.org/x/crypto/nacl/box"
 	"io"
 	"log"
 	"net"
 	"os"
 
-	"github.com/arianitu/go-challenge-2/snacl"
+	"golang.org/x/crypto/nacl/box"
 )
-
-var (
-	maxMessageLength = 31999
-)
-
-// CryptoRandomReader generates crypto random data
-type CryptoRandomReader struct{}
-
-// Read will put random data into p, it will try to fill p entirely with random data
-func (r *CryptoRandomReader) Read(p []byte) (n int, err error) {
-	return rand.Read(p)
-}
-
-// SecureConnection implements a secure connection using public-key cryptography
-type SecureConnection struct {
-	sr   io.Reader
-	sw   io.Writer
-	conn io.ReadWriteCloser
-}
-
-// Init initializes the secure connection with a private and public key
-// conn is an underlying connection
-// priv is your private key
-// pub is the public key of the party you're trying to communicate with
-func (sconn *SecureConnection) Init(conn io.ReadWriteCloser, priv, pub *[32]byte) {
-	sconn.sr = NewSecureReader(conn, priv, pub)
-	sconn.sw = NewSecureWriter(conn, priv, pub)
-	sconn.conn = conn
-}
-
-// Read decrypts from the underlying stream and writes it to p []byte
-func (sconn *SecureConnection) Read(p []byte) (n int, err error) {
-	return sconn.sr.Read(p)
-}
-
-// Write encrypts p []byte and sends it to the underlying stream
-func (sconn *SecureConnection) Write(p []byte) (n int, err error) {
-	return sconn.sw.Write(p)
-}
-
-// Close closes the underlying stream
-func (sconn *SecureConnection) Close() error {
-	return sconn.conn.Close()
-}
-
-// NewSecureConnection allocates a SecureConnection for you and initializes it
-func NewSecureConnection(r io.ReadWriteCloser, priv, pub *[32]byte) *SecureConnection {
-	secureConnection := &SecureConnection{}
-	secureConnection.Init(r, priv, pub)
-	return secureConnection
-}
-
-// NewSecureReader instantiates a new SecureReader
-func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
-	return snacl.NewReader(r, priv, pub)
-}
-
-// NewSecureWriter instantiates a new SecureWriter
-func NewSecureWriter(w io.Writer, priv, pub *[32]byte) io.Writer {
-	return snacl.NewWriter(w, priv, pub)
-}
 
 // Dial generates a private/public key pair,
 // connects to the server, perform the handshake
@@ -94,7 +31,7 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 		return nil, err
 	}
 
-	return NewSecureConnection(conn, clientPrivateKey, &serverPublicKey), nil
+	return NewSecureReadWriteCloser(conn, clientPrivateKey, &serverPublicKey), nil
 }
 
 // Serve starts a secure echo server on the given listener.
@@ -121,7 +58,7 @@ func Serve(l net.Listener) error {
 				return
 			}
 
-			secureConnection := NewSecureConnection(conn, serverPrivateKey, &clientPublicKey)
+			secureConnection := NewSecureReadWriteCloser(conn, serverPrivateKey, &clientPublicKey)
 
 			buf := make([]byte, maxMessageLength)
 			read, err := secureConnection.Read(buf)
