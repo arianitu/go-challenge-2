@@ -4,8 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/crypto/nacl/box"
 	"io"
+
+	"golang.org/x/crypto/nacl/box"
 )
 
 // CryptoRandomReader generates crypto random data
