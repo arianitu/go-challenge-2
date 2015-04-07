@@ -121,7 +121,7 @@ type SecureWriter struct {
 }
 
 // NewSecureWriter is a convenient helper method that allocates and initializes a secure writer for you
-// W is the underlying stream to write securely to
+// w is the underlying stream to write securely to
 // priv is your private key
 // pub is the public key of who you're communicating with
 func NewSecureWriter(w io.Writer, priv, pub *[32]byte) io.Writer {
