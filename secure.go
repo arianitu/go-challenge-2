@@ -90,6 +90,9 @@ func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
+	if length == 0 {
+		return 0, fmt.Errorf("Invalid length prefix (len:%d) for encrypted data", length)
+	}
 
 	// To be able to decrypt properly, we must receive all the data that we encrypted with
 	encryptedData := make([]byte, length)
