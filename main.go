@@ -18,7 +18,8 @@ var (
 
 // If you're looking for NewSecureReader and NewSecureWriter, they're in secure.go (it's easier to read from top to bottom)
 
-// PerformHandshake performs a key exchange with the underlying stream
+// PerformHandshake performs a key exchange with the underlying stream and returns a secure version of it
+// rwc is the underlying ReadWriteCloser we want to do the handshake on
 func PerformHandshake(rwc io.ReadWriteCloser) (io.ReadWriteCloser, error) {
 	ourPublicKey, ourPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 	var theirPublicKey [32]byte
@@ -57,19 +58,19 @@ func Serve(l net.Listener) error {
 		go func(conn net.Conn) {
 			defer conn.Close()
 			
-			secureConnection, err := PerformHandshake(conn)
+			sconn, err := PerformHandshake(conn)
 			if err != nil {
 				fmt.Println(err)
 			}
 			
 			buf := make([]byte, maxMessageLength)
-			read, err := secureConnection.Read(buf)
+			read, err := sconn.Read(buf)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 			
-			_, err = secureConnection.Write(buf[:read])
+			_, err = sconn.Write(buf[:read])
 			if err != nil {
 				log.Println(err)
 				return

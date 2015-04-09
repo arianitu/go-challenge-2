@@ -90,8 +90,8 @@ func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	if length == 0 {
-		return 0, fmt.Errorf("Invalid length prefix (len:%d) for encrypted data", length)
+	if length <= 0 {
+		return 0, fmt.Errorf("invalid length prefix (len:%d) for encrypted data", length)
 	}
 
 	// To be able to decrypt properly, we must receive all the data that we encrypted with
@@ -111,7 +111,7 @@ func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	// If ok is false, we have failed to decrypt properly
 	// Usually this is because the encrypted data is malformed
 	if !ok {
-		return 0, fmt.Errorf("Failed to decrypt box! Encrypted data is likely malformed.")
+		return 0, fmt.Errorf("failed to decrypt box! Encrypted data is likely malformed")
 	}
 
 	n = copy(p, decryptedData)
@@ -162,7 +162,7 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 	encryptedData := box.SealAfterPrecomputation(nonceBytes, p, &nonce, &sw.sharedKey)
 
 	// Prepend the length to our data so the reader knows how much room to make when reading
-	var length = uint32(len(encryptedData))
+	var length uint32 = uint32(len(encryptedData))
 	err = binary.Write(sw.w, binary.BigEndian, length)
 	if err != nil {
 		return 0, nil
