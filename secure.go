@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	// The maximum message size. This is prevent memory allocation attacks.
-	MaxMessageLength = 31999
+	// MaxMessageLength is the maximum size a of a message. This is prevent memory allocation attacks.
+	MaxMessageLength  = 31999
 	nonceHeaderLength = 24
 )
 
@@ -181,7 +181,7 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 	if len(p) > MaxMessageLength {
 		return 0, fmt.Errorf("length is too large (len:%d max: %d)", len(p), MaxMessageLength)
 	}
-	
+
 	// rand.Read is guaranteed to read 24 bytes because it calls ReadFull under the covers
 	nonceBytes := make([]byte, 24)
 	_, err = rand.Read(nonceBytes)
