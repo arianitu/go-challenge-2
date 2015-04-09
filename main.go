@@ -11,24 +11,19 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
-var (
-	// The maximum message size for the challenge is 32kb - 1
-	maxMessageLength = 31999
-)
-
 // If you're looking for NewSecureReader and NewSecureWriter, they're in secure.go (it's easier to read from top to bottom)
 
 // PerformHandshake performs a key exchange with the underlying stream and returns a secure version of it
 // rwc is the underlying ReadWriteCloser we want to do the handshake on
-func PerformHandshake(rwc io.ReadWriteCloser) (io.ReadWriteCloser, error) {
+func PerformHandshake(rwc io.ReadWriteCloser) (*SecureReadWriteCloser, error) {
 	ourPublicKey, ourPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
 	var theirPublicKey [32]byte
-	
+
 	_, err = rwc.Write(ourPublicKey[:])
 	if err != nil {
 		return nil, err
 	}
-	
+
 	_, err = io.ReadFull(rwc, theirPublicKey[:])
 	if err != nil {
 		return nil, err
@@ -57,20 +52,20 @@ func Serve(l net.Listener) error {
 		}
 		go func(conn net.Conn) {
 			defer conn.Close()
-			
+
 			sconn, err := PerformHandshake(conn)
 			if err != nil {
 				fmt.Println(err)
 			}
-			
-			buf := make([]byte, maxMessageLength)
-			read, err := sconn.Read(buf)
+
+			// read an entire msg to prevent allocating unnecessary amount of data
+			msg, err := sconn.ReadMsg()
 			if err != nil {
 				log.Println(err)
 				return
 			}
-			
-			_, err = sconn.Write(buf[:read])
+
+			_, err = sconn.Write(msg)
 			if err != nil {
 				log.Println(err)
 				return
@@ -103,7 +98,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer conn.Close()
-	
+
 	if _, err := conn.Write([]byte(os.Args[2])); err != nil {
 		log.Fatal(err)
 	}

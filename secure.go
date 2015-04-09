@@ -9,6 +9,12 @@ import (
 	"golang.org/x/crypto/nacl/box"
 )
 
+var (
+	// The maximum message size. This is prevent memory allocation attacks.
+	MaxMessageLength = 31999
+	nonceHeaderLength = 24
+)
+
 // CryptoRandomReader generates crypto random data
 type CryptoRandomReader struct{}
 
@@ -19,8 +25,8 @@ func (r *CryptoRandomReader) Read(p []byte) (n int, err error) {
 
 // SecureReadWriteCloser implements a secure ReadWriteCloser using public-key cryptography
 type SecureReadWriteCloser struct {
-	sr  io.Reader
-	sw  io.Writer
+	sr  *SecureReader
+	sw  *SecureWriter
 	rwc io.ReadWriteCloser
 }
 
@@ -35,13 +41,20 @@ func (srwc *SecureReadWriteCloser) Init(rwc io.ReadWriteCloser, priv, pub *[32]b
 }
 
 // Read decrypts from the underlying stream and writes it to p []byte
-func (srwc *SecureReadWriteCloser) Read(p []byte) (n int, err error) {
-	return srwc.sr.Read(p)
+// p is expected to be big enough to hold the entire decrypted message, if it's not,
+// Read writes as much as it can and discards the rest of the message.
+func (srwc *SecureReadWriteCloser) Read(msg []byte) (n int, err error) {
+	return srwc.sr.Read(msg)
+}
+
+// ReadMsg decrypts an entire box from the underlying stream and returns it
+func (srwc *SecureReadWriteCloser) ReadMsg() (msg []byte, err error) {
+	return srwc.sr.ReadMsg()
 }
 
 // Write encrypts p []byte and sends it to the underlying stream
-func (srwc *SecureReadWriteCloser) Write(p []byte) (n int, err error) {
-	return srwc.sw.Write(p)
+func (srwc *SecureReadWriteCloser) Write(msg []byte) (n int, err error) {
+	return srwc.sw.Write(msg)
 }
 
 // Close closes the underlying stream
@@ -66,7 +79,7 @@ type SecureReader struct {
 // r is the underlying stream to read securely from
 // priv is your private key
 // pub is the public key of who you're communicating with
-func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
+func NewSecureReader(r io.Reader, priv, pub *[32]byte) *SecureReader {
 	sr := &SecureReader{}
 	sr.Init(r, priv, pub)
 	return sr
@@ -81,44 +94,62 @@ func (sr *SecureReader) Init(r io.Reader, priv, pub *[32]byte) {
 	sr.r = r
 }
 
-// Read decrypts a box in the underlying stream and writes it to p []byte
-func (sr *SecureReader) Read(p []byte) (n int, err error) {
+// ReadMsg decrypts an entire message from the underlying stream and returns it
+func (sr *SecureReader) ReadMsg() (msg []byte, err error) {
 
 	// Length is the length of the encrypted data (including box.Overhead)
 	var length uint32
 	err = binary.Read(sr.r, binary.BigEndian, &length)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if length <= 0 {
-		return 0, fmt.Errorf("invalid length prefix (len:%d) for encrypted data", length)
+		return nil, fmt.Errorf("invalid length (len:%d) for encrypted data", length)
+	}
+	// restrict length to stop memory allocation attack
+	maxLength := uint32(MaxMessageLength + nonceHeaderLength + box.Overhead)
+	if length > maxLength {
+		return nil, fmt.Errorf("length of encrypted data is too large (len:%d max: %d)", length, maxLength)
 	}
 
 	// To be able to decrypt properly, we must receive all the data that we encrypted with
 	encryptedData := make([]byte, length)
-	n, err = io.ReadFull(sr.r, encryptedData)
+	_, err = io.ReadFull(sr.r, encryptedData)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	var nonce [24]byte
 	copy(nonce[:], encryptedData[0:24])
 
 	// OpenAfterPrecomputation appends to out and returns the appended data
-	var decryptedData = make([]byte, 0)
-	decryptedData, ok := box.OpenAfterPrecomputation(decryptedData, encryptedData[24:], &nonce, &sr.sharedKey)
+	msg, ok := box.OpenAfterPrecomputation(msg, encryptedData[24:], &nonce, &sr.sharedKey)
 
 	// If ok is false, we have failed to decrypt properly
 	// Usually this is because the encrypted data is malformed
 	if !ok {
-		return 0, fmt.Errorf("failed to decrypt box! Encrypted data is likely malformed")
+		return nil, fmt.Errorf("failed to decrypt box! Encrypted data is likely malformed")
 	}
 
-	n = copy(p, decryptedData)
-	return n, nil
+	return msg, nil
 }
 
-// SecureWriter encrypts data securely to a stream using nacl
+// Read decrypts a box from the underlying stream and writes it to p []byte
+// p is expected to be big enough to hold the entire decrypted message, if it's not,
+// Read writes as much as it can to p []byte and discards the rest of the message.
+func (sr *SecureReader) Read(p []byte) (n int, err error) {
+
+	msg, err := sr.ReadMsg()
+	if err != nil {
+		return 0, err
+	}
+
+	n = copy(p, msg)
+	return n, nil
+
+}
+
+// SecureWriter encrypts data securely to a stream
 type SecureWriter struct {
 	sharedKey [32]byte
 	w         io.Writer
@@ -128,7 +159,7 @@ type SecureWriter struct {
 // w is the underlying stream to write securely to
 // priv is your private key
 // pub is the public key of who you're communicating with
-func NewSecureWriter(w io.Writer, priv, pub *[32]byte) io.Writer {
+func NewSecureWriter(w io.Writer, priv, pub *[32]byte) *SecureWriter {
 	sw := &SecureWriter{}
 	sw.Init(w, priv, pub)
 	return sw
@@ -144,8 +175,13 @@ func (sw *SecureWriter) Init(w io.Writer, priv, pub *[32]byte) {
 }
 
 // Write encrypts p []byte to the underlying stream.
+// the length of p is restricted to MaxMessageLength
 func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 
+	if len(p) > MaxMessageLength {
+		return 0, fmt.Errorf("length is too large (len:%d max: %d)", len(p), MaxMessageLength)
+	}
+	
 	// rand.Read is guaranteed to read 24 bytes because it calls ReadFull under the covers
 	nonceBytes := make([]byte, 24)
 	_, err = rand.Read(nonceBytes)
@@ -162,7 +198,7 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 	encryptedData := box.SealAfterPrecomputation(nonceBytes, p, &nonce, &sw.sharedKey)
 
 	// Prepend the length to our data so the reader knows how much room to make when reading
-	var length uint32 = uint32(len(encryptedData))
+	var length = uint32(len(encryptedData))
 	err = binary.Write(sw.w, binary.BigEndian, length)
 	if err != nil {
 		return 0, nil
@@ -173,4 +209,5 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 	return n, nil
+
 }
