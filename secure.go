@@ -86,7 +86,7 @@ func (sr *SecureReader) Read(p []byte) (n int, err error) {
 
 	// Length is the length of the encrypted data (including box.Overhead)
 	var length uint32
-	err = binary.Read(sr.r, binary.LittleEndian, &length)
+	err = binary.Read(sr.r, binary.BigEndian, &length)
 	if err != nil {
 		return 0, err
 	}
@@ -163,7 +163,7 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 
 	// Prepend the length to our data so the reader knows how much room to make when reading
 	var length = uint32(len(encryptedData))
-	err = binary.Write(sw.w, binary.LittleEndian, length)
+	err = binary.Write(sw.w, binary.BigEndian, length)
 	if err != nil {
 		return 0, nil
 	}

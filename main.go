@@ -18,6 +18,23 @@ var (
 
 // If you're looking for NewSecureReader and NewSecureWriter, they're in secure.go (it's easier to read from top to bottom)
 
+// PerformHandshake performs a key exchange with the underlying stream
+func PerformHandshake(rwc io.ReadWriteCloser) (io.ReadWriteCloser, error) {
+	ourPublicKey, ourPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
+	var theirPublicKey [32]byte
+	
+	_, err = rwc.Write(ourPublicKey[:])
+	if err != nil {
+		return nil, err
+	}
+	
+	_, err = io.ReadFull(rwc, theirPublicKey[:])
+	if err != nil {
+		return nil, err
+	}
+	return NewSecureReadWriteCloser(rwc, ourPrivateKey, &theirPublicKey), nil
+}
+
 // Dial generates a private/public key pair,
 // connects to the server, perform the handshake
 // and return a reader/writer.
@@ -27,19 +44,7 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 		return nil, err
 	}
 
-	// We perform the handshake by sending the server our public key and receiving the servers public key
-	clientPublicKey, clientPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
-	var serverPublicKey [32]byte
-	_, err = io.ReadAtLeast(conn, serverPublicKey[:], 32)
-	if err != nil {
-		return nil, err
-	}
-	_, err = conn.Write(clientPublicKey[:])
-	if err != nil {
-		return nil, err
-	}
-
-	return NewSecureReadWriteCloser(conn, clientPrivateKey, &serverPublicKey), nil
+	return PerformHandshake(conn)
 }
 
 // Serve starts a secure echo server on the given listener.
@@ -51,31 +56,19 @@ func Serve(l net.Listener) error {
 		}
 		go func(conn net.Conn) {
 			defer conn.Close()
-
-			// We perform the handshake by sending the client our public key and receiving the clients public key
-			serverPublicKey, serverPrivateKey, err := box.GenerateKey(new(CryptoRandomReader))
-			_, err = conn.Write(serverPublicKey[:])
+			
+			secureConnection, err := PerformHandshake(conn)
 			if err != nil {
-				log.Println(err)
-				return
+				fmt.Println(err)
 			}
-
-			var clientPublicKey [32]byte
-			_, err = io.ReadFull(conn, clientPublicKey[:])
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			secureConnection := NewSecureReadWriteCloser(conn, serverPrivateKey, &clientPublicKey)
-
+			
 			buf := make([]byte, maxMessageLength)
 			read, err := secureConnection.Read(buf)
 			if err != nil {
 				log.Println(err)
 				return
 			}
-
+			
 			_, err = secureConnection.Write(buf[:read])
 			if err != nil {
 				log.Println(err)
