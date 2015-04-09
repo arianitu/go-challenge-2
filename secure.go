@@ -96,7 +96,6 @@ func (sr *SecureReader) Init(r io.Reader, priv, pub *[32]byte) {
 
 // ReadMsg decrypts an entire message from the underlying stream and returns it
 func (sr *SecureReader) ReadMsg() (msg []byte, err error) {
-
 	// Length is the length of the encrypted data (including box.Overhead)
 	var length uint32
 	err = binary.Read(sr.r, binary.BigEndian, &length)
@@ -138,7 +137,6 @@ func (sr *SecureReader) ReadMsg() (msg []byte, err error) {
 // p is expected to be big enough to hold the entire decrypted message, if it's not,
 // Read writes as much as it can to p []byte and discards the rest of the message.
 func (sr *SecureReader) Read(p []byte) (n int, err error) {
-
 	msg, err := sr.ReadMsg()
 	if err != nil {
 		return 0, err
@@ -146,7 +144,6 @@ func (sr *SecureReader) Read(p []byte) (n int, err error) {
 
 	n = copy(p, msg)
 	return n, nil
-
 }
 
 // SecureWriter encrypts data securely to a stream
@@ -177,7 +174,6 @@ func (sw *SecureWriter) Init(w io.Writer, priv, pub *[32]byte) {
 // Write encrypts p []byte to the underlying stream.
 // the length of p is restricted to MaxMessageLength
 func (sw *SecureWriter) Write(p []byte) (n int, err error) {
-
 	if len(p) > MaxMessageLength {
 		return 0, fmt.Errorf("length is too large (len:%d max: %d)", len(p), MaxMessageLength)
 	}
