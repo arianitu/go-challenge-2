@@ -56,9 +56,9 @@ func Serve(l net.Listener) error {
 			sconn, err := PerformHandshake(conn)
 			if err != nil {
 				fmt.Println(err)
+				return
 			}
-
-			// read an entire msg to prevent allocating unnecessary amount of data
+			
 			msg, err := sconn.ReadMsg()
 			if err != nil {
 				log.Println(err)
