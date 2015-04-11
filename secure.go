@@ -259,7 +259,6 @@ func (sw *SecureWriter) Init(w io.Writer, priv, pub *[32]byte) {
 
 // Write encrypts p []byte to the underlying stream.
 func (sw *SecureWriter) Write(p []byte) (n int, err error) {
-
 	err = sw.enc.Encode(&Message{Data: p})
 	if err != nil {
 		return 0, err
@@ -267,5 +266,4 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 
 	// If encoding is successful, we're guaranteed that all the data was written
 	return len(p), nil
-
 }
