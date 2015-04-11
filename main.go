@@ -58,14 +58,14 @@ func Serve(l net.Listener) error {
 				fmt.Println(err)
 				return
 			}
-			
+
 			msg, err := sconn.ReadMsg()
 			if err != nil {
 				log.Println(err)
 				return
 			}
 
-			_, err = sconn.Write(msg)
+			_, err = sconn.Write(msg.Data)
 			if err != nil {
 				log.Println(err)
 				return
